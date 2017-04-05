@@ -23,9 +23,10 @@ class HttpServer:
         except OSError:
 
             try:
-                logger.info('Trying to connect to port %d' % (self.port+1))
-                self.socket.bind((self.host, self.port+1))
-                logger.info('Connected to port %d' % (self.port + 1))
+                self.port += 1
+                logger.info('Trying to connect to port %d' % self.port)
+                self.socket.bind((self.host, self.port))
+                logger.info('Connected to port %d' % self.port)
 
             except OSError:
                 logger.info('Server Shutdown')
@@ -34,18 +35,22 @@ class HttpServer:
     @staticmethod
     def _handle_header(directory_route):
 
-        header = 'HTTP/1.1 200 OK\n'
-
-        if os.path.isfile(directory_route):
-            mime_type = mimetypes.guess_type(directory_route)[0]
-
-            if mime_type:
-                header += 'Content-Type: %s\n' % mime_type
-            else:
-                header += 'Content-Type: text/plain\n'
+        if not os.path.exists(directory_route):
+            header = 'HTTP/1.1 404 Not Found'
 
         else:
-            header += 'Content-Type: text/html\n'
+            header = 'HTTP/1.1 200 OK\n'
+
+            if os.path.isfile(directory_route):
+                mime_type = mimetypes.guess_type(directory_route)[0]
+
+                if mime_type:
+                    header += 'Content-Type: %s\n' % mime_type
+                else:
+                    header += 'Content-Type: text/plain\n'
+
+            else:
+                header += 'Content-Type: text/html\n'
 
         header += 'Connection: keep-alive\n\n'
 
@@ -56,36 +61,41 @@ class HttpServer:
     @staticmethod
     def _handle_body(directory_route, request_route):
 
-        if os.path.isfile(directory_route):
-            with open(directory_route, 'rb') as inf:
-                body = inf.read()
+        if not os.path.exists(directory_route):
+            body = '<html>\n<head>\n<title>Contents</title>\n<span >404, File Not Found</span>\n<hr>\n \
+                    </head>\n<body>\n</body>\n</html>'.encode()
 
         else:
-            directories = os.listdir(directory_route)
-
-            if 'index.html' in directories:
-                logger.info('Found an index, on route %s.', directory_route)
-                index_route = directory_route + '/index.html'
-                with open(index_route, 'rb') as inf:
+            if os.path.isfile(directory_route):
+                with open(directory_route, 'rb') as inf:
                     body = inf.read()
 
             else:
-                logger.info('Returning directory list on route %s.', request_route)
+                directories = os.listdir(directory_route)
 
-                body_hat = '<html>\n<head>\n<title>Contents</title>\n<span >Directory listing for %s</span>\n<hr>\n \
-                </head>\n<body>\n<ul>' % request_route
+                if 'index.html' in directories:
+                    logger.info('Found an index, on route %s.', directory_route)
+                    index_route = directory_route + '/index.html'
+                    with open(index_route, 'rb') as inf:
+                        body = inf.read()
 
-                body_center = ""
+                else:
+                    logger.info('Returning directory list on route %s.', request_route)
 
-                for item in directories:
-                    body_center += "<li><a href='%s%s" % (request_route, item)
-                    if os.path.isdir("%s/%s" % (directory_route, item)):
-                        body_center += "/"
-                    body_center += "'>%s</a></li>\n" % item
+                    body_hat = '<html>\n<head>\n<title>Contents</title>\n<span >Directory listing for %s</span>\n<hr>\n \
+                    </head>\n<body>\n<ul>' % request_route
 
-                body_bottom = '</ul>\n<hr>\n</body>\n</html>'
+                    body_center = ""
 
-                body = (body_hat + body_center + body_bottom).encode()
+                    for item in directories:
+                        body_center += "<li><a href='%s%s" % (request_route, item)
+                        if os.path.isdir("%s/%s" % (directory_route, item)):
+                            body_center += "/"
+                        body_center += "'>%s</a></li>\n" % item
+
+                    body_bottom = '</ul>\n<hr>\n</body>\n</html>'
+
+                    body = (body_hat + body_center + body_bottom).encode()
 
         return body
 
