@@ -7,6 +7,18 @@ from .logger import logger
 logger.setLevel(logging.DEBUG)
 
 
+def memoized(func):
+    cache = {}
+
+    def inner(*args, **kwargs):
+        key = args + tuple(sorted(kwargs.items()))
+        print(key)
+        if key not in cache:
+            cache[key] = func(*args, **kwargs)
+        return cache[key]
+    return inner
+
+
 class HttpServer:
     def __init__(self, host, port):
 
@@ -16,7 +28,8 @@ class HttpServer:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
-            logger.info('Initializing server on %s:%d' % (self.host, self.port))
+            logger.info('Initializing server on %s:%d'
+                        % (self.host, self.port))
             self.socket.bind((self.host, self.port))
             logger.info('Connected to port %d' % self.port)
 
@@ -33,10 +46,11 @@ class HttpServer:
                 self.socket.shutdown(socket.SHUT_RDWR)
 
     @staticmethod
+    @memoized
     def _handle_header(directory_route):
 
         if not os.path.exists(directory_route):
-            header = 'HTTP/1.1 404 Not Found'
+            header = 'HTTP/1.1 404 Not Found\n'
 
         else:
             header = 'HTTP/1.1 200 OK\n'
@@ -59,11 +73,13 @@ class HttpServer:
         return header
 
     @staticmethod
+    @memoized
     def _handle_body(directory_route, request_route):
 
         if not os.path.exists(directory_route):
-            body = '<html>\n<head>\n<title>Contents</title>\n<span >404, File Not Found</span>\n<hr>\n \
-                    </head>\n<body>\n</body>\n</html>'.encode()
+            body = '<html>\n<head>\n<title>Contents</title>\n \
+            <span>404, File Not Found</span>\n<hr>\n</head>\n \
+            <body>\n</body>\n</html>'.encode()
 
         else:
             if os.path.isfile(directory_route):
@@ -74,21 +90,25 @@ class HttpServer:
                 directories = os.listdir(directory_route)
 
                 if 'index.html' in directories:
-                    logger.info('Found an index, on route %s.', directory_route)
+                    logger.info('Found an index, on route %s.',
+                                directory_route)
                     index_route = directory_route + '/index.html'
                     with open(index_route, 'rb') as inf:
                         body = inf.read()
 
                 else:
-                    logger.info('Returning directory list on route %s.', request_route)
+                    logger.info('Returning directory list on route %s.',
+                                request_route)
 
-                    body_hat = '<html>\n<head>\n<title>Contents</title>\n<span >Directory listing for %s</span>\n<hr>\n \
-                    </head>\n<body>\n<ul>' % request_route
+                    body_hat = '<html>\n<head>\n<title>Contents</title>\n \
+                    <span >Directory listing for %s</span>\n<hr>\n</head>\n \
+                    <body>\n<ul>' % request_route
 
                     body_center = ""
 
                     for item in directories:
-                        body_center += "<li><a href='%s%s" % (request_route, item)
+                        body_center += "<li><a href='%s%s" \
+                                       % (request_route, item)
                         if os.path.isdir("%s/%s" % (directory_route, item)):
                             body_center += "/"
                         body_center += "'>%s</a></li>\n" % item
@@ -107,6 +127,11 @@ class HttpServer:
         try:
             data = conn.recv(1024)
             request_string = bytes.decode(data)
+
+            if not request_string:
+                logger.info('An empty request string received. Closing the connection.')
+                conn.close()
+                return
 
             logger.info('Request string: \n %s' % request_string)
 
