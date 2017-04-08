@@ -7,18 +7,6 @@ from .logger import logger
 logger.setLevel(logging.DEBUG)
 
 
-def memoized(func):
-    cache = {}
-
-    def inner(*args, **kwargs):
-        key = args + tuple(sorted(kwargs.items()))
-        print(key)
-        if key not in cache:
-            cache[key] = func(*args, **kwargs)
-        return cache[key]
-    return inner
-
-
 class HttpServer:
     def __init__(self, host, port):
 
@@ -46,7 +34,6 @@ class HttpServer:
                 self.socket.shutdown(socket.SHUT_RDWR)
 
     @staticmethod
-    @memoized
     def _handle_header(directory_route):
 
         if not os.path.exists(directory_route):
@@ -73,7 +60,6 @@ class HttpServer:
         return header
 
     @staticmethod
-    @memoized
     def _handle_body(directory_route, request_route):
 
         if not os.path.exists(directory_route):
@@ -129,7 +115,8 @@ class HttpServer:
             request_string = bytes.decode(data)
 
             if not request_string:
-                logger.info('An empty request string received. Closing the connection.')
+                logger.info('An empty request string received.\
+                            Closing the connection.')
                 conn.close()
                 return
 
